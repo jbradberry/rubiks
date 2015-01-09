@@ -1,73 +1,65 @@
 
 
 class Permutation(object):
-    def __init__(self, _set, mapping):
-        assert not (set(mapping) - _set)
-        assert not (set(mapping.itervalues()) - _set)
-        assert len(mapping) == len(set(mapping.itervalues()))
-
-        self.set = _set
-        self.mapping = dict((k, v) for k, v in mapping.iteritems() if k != v)
-        self._sequences = None
+    def __init__(self, val):
+        if isinstance(val, dict):
+            keys = set(val)
+            values = set(val.itervalues())
+            if keys != values:
+                raise ValueError("Mapping must be one-to-one and onto.")
+            self._mapping = dict((k, v) for k, v in val.iteritems() if k != v)
+        elif isinstance(val, (list, tuple)):
+            self._mapping = {}
+            for seq in val:
+                if len(set(seq)) != len(seq):
+                    raise ValueError("Sequences must be one-to-one and onto.")
+                if any(k in self._mapping for k in seq):
+                    raise ValueError("Sequences must be one-to-one and onto.")
+                self._mapping.update(
+                    (k, v) for k, v in zip(*[seq, seq[1:] + seq[:1]]))
+        else:
+            raise ValueError("Value must be either a sequence of sequences"
+                             " or a mapping.")
 
     def __unicode__(self):
-        if not self.sequences:
+        if not self._mapping:
             return u'()'
-        return u''.join(
-            u'({0})'.format(u', '.join(map(unicode, seq)))
-            for seq in self.sequences
-        )
+        return u''.join(unicode(S) for S in self.sequences)
 
     def __repr__(self):
         return unicode(self)
 
     @property
     def sequences(self):
-        if self._sequences is not None:
-            return self._sequences
-        affected = set(self.mapping)
-        if not affected:
-            self._sequences = ()
-            return self._sequences
+        keys = set(self._mapping)
+        sequences = []
+        while keys:
+            k = keys.pop()
+            seq = [k]
+            while self._mapping[k] in keys:
+                k = self._mapping[k]
+                seq.append(k)
+                keys.remove(k)
+            if len(seq) > 1:
+                sequences.append(tuple(seq))
+        return tuple(sequences)
 
-        fullseq = [[]]
-        item = affected.pop()
-        while affected:
-            fullseq[-1].append(item)
-            if self.mapping[item] not in affected:
-                fullseq.append([])
-                item = affected.pop()
-            else:
-                item = self.mapping[item]
-                affected.remove(item)
-        fullseq[-1].append(item)
-
-        self._sequences = tuple(tuple(S) for S in fullseq)
-        return self._sequences
+    def __getitem__(self, key):
+        return self._mapping.get(key, key)
 
     def __eq__(self, perm):
-        return self.mapping == perm.mapping
+        return self._mapping == perm._mapping
 
     def __ne__(self, perm):
-        return self.mapping != perm.mapping
+        return self._mapping != perm._mapping
 
     def __invert__(self):
         return Permutation(
-            self.set.copy(), dict((v, k) for k, v in self.mapping.iteritems()))
-
-    def __mul__(self, perm):
-        if not self.sequences:
-            return perm
-
-        assert self.set == perm.set
-
-        new_set = self.set.copy()
-        new_mapping = dict(
-            (x,
-             perm.mapping.get(self.mapping[x], self.mapping[x])
-             if x in self.mapping else
-             perm.mapping.get(x, x))
-            for x in self.set
+            dict((v, k) for k, v in self._mapping.iteritems())
         )
 
-        return Permutation(new_set, new_mapping)
+    def __mul__(self, perm):
+        return Permutation(
+            dict((k, perm[self[k]])
+                 for k in set(self._mapping) | set(perm._mapping))
+        )
