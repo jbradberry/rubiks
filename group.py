@@ -29,6 +29,9 @@ class Permutation(object):
     def __repr__(self):
         return unicode(self)
 
+    def __hash__(self):
+        return hash(tuple(sorted(self._mapping.items())))
+
     @property
     def sequences(self):
         keys = set(self._mapping)
